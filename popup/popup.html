@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpoofGuard - Email Security Analysis</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <img src="../icons/icon32.png" alt="SpoofGuard" class="logo-icon">
+                <h1>SpoofGuard</h1>
+            </div>
+            <div class="status-indicator" id="status-indicator">
+                <span class="status-dot" id="status-dot"></span>
+                <span id="status-text">Monitoring</span>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- Current Email Analysis -->
+            <section class="analysis-section" id="current-analysis">
+                <h2>Current Email Analysis</h2>
+                <div class="email-info" id="email-info">
+                    <p class="no-email">No email selected. Open an email to analyze.</p>
+                </div>
+                
+                <div class="auth-results" id="auth-results" style="display: none;">
+                    <div class="auth-item" id="spf-result">
+                        <span class="auth-label">SPF:</span>
+                        <span class="auth-status" id="spf-status">-</span>
+                        <span class="auth-indicator" id="spf-indicator"></span>
+                    </div>
+                    <div class="auth-item" id="dkim-result">
+                        <span class="auth-label">DKIM:</span>
+                        <span class="auth-status" id="dkim-status">-</span>
+                        <span class="auth-indicator" id="dkim-indicator"></span>
+                    </div>
+                    <div class="auth-item" id="dmarc-result">
+                        <span class="auth-label">DMARC:</span>
+                        <span class="auth-status" id="dmarc-status">-</span>
+                        <span class="auth-indicator" id="dmarc-indicator"></span>
+                    </div>
+                </div>
+
+                <div class="overall-verdict" id="overall-verdict" style="display: none;">
+                    <div class="verdict-icon" id="verdict-icon"></div>
+                    <div class="verdict-text">
+                        <h3 id="verdict-title">Email Security Status</h3>
+                        <p id="verdict-message">Analyzing email authentication...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Detailed Report -->
+            <section class="report-section" id="detailed-report" style="display: none;">
+                <h2>Detailed Security Report</h2>
+                <div class="report-content" id="report-content">
+                    <div class="report-item">
+                        <h4>Sender Information</h4>
+                        <p id="sender-info">-</p>
+                    </div>
+                    <div class="report-item">
+                        <h4>Domain Analysis</h4>
+                        <p id="domain-analysis">-</p>
+                    </div>
+                    <div class="report-item">
+                        <h4>Authentication Details</h4>
+                        <div id="auth-details">-</div>
+                    </div>
+                    <div class="report-item">
+                        <h4>Risk Assessment</h4>
+                        <p id="risk-assessment">-</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>&copy; 2025 SpoofGuard - Protecting against email spoofing</p>
+        </footer>
+    </div>
+    <script src="popup.js"></script>
+</body>
+</html>
