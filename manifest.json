@@ -15,9 +15,6 @@
   
   "host_permissions": [
     "*://mail.google.com/*",
-    "*://outlook.live.com/*",
-    "*://outlook.office.com/*",
-    "*://mail.yahoo.com/*",
     "https://dns.google/*",
     "https://www.googleapis.com/*"
   ],
@@ -37,10 +34,7 @@
   "content_scripts": [
     {
       "matches": [
-        "*://mail.google.com/*",
-        "*://outlook.live.com/*",
-        "*://outlook.office.com/*",
-        "*://mail.yahoo.com/*"
+        "*://mail.google.com/*"
       ],
       "js": ["content/content.js"],
       "css": ["content/content.css"],
