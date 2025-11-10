@@ -27,21 +27,34 @@
                     <p class="no-email">No email selected. Open an email to analyze.</p>
                 </div>
                 
+                <!-- Authentication Results -->
                 <div class="auth-results" id="auth-results" style="display: none;">
                     <div class="auth-item" id="spf-result">
-                        <span class="auth-label">SPF:</span>
-                        <span class="auth-status" id="spf-status">-</span>
-                        <span class="auth-indicator" id="spf-indicator"></span>
+                        <div class="auth-row">
+                            <span class="auth-label">SPF:</span>
+                            <span class="auth-status" id="spf-status">-</span>
+                            <span class="auth-indicator" id="spf-indicator"></span>
+                            <button class="explain-toggle" id="spf-explain-toggle" aria-expanded="false" aria-controls="spf-explain" hidden>Explain more</button>
+                        </div>
+                        <div class="explain-panel" id="spf-explain" aria-hidden="true"></div>
                     </div>
                     <div class="auth-item" id="dkim-result">
-                        <span class="auth-label">DKIM:</span>
-                        <span class="auth-status" id="dkim-status">-</span>
-                        <span class="auth-indicator" id="dkim-indicator"></span>
+                        <div class="auth-row">
+                            <span class="auth-label">DKIM:</span>
+                            <span class="auth-status" id="dkim-status">-</span>
+                            <span class="auth-indicator" id="dkim-indicator"></span>
+                            <button class="explain-toggle" id="dkim-explain-toggle" aria-expanded="false" aria-controls="dkim-explain" hidden>Explain more</button>
+                        </div>
+                        <div class="explain-panel" id="dkim-explain" aria-hidden="true"></div>
                     </div>
                     <div class="auth-item" id="dmarc-result">
-                        <span class="auth-label">DMARC:</span>
-                        <span class="auth-status" id="dmarc-status">-</span>
-                        <span class="auth-indicator" id="dmarc-indicator"></span>
+                        <div class="auth-row">
+                            <span class="auth-label">DMARC:</span>
+                            <span class="auth-status" id="dmarc-status">-</span>
+                            <span class="auth-indicator" id="dmarc-indicator"></span>
+                            <button class="explain-toggle" id="dmarc-explain-toggle" aria-expanded="false" aria-controls="dmarc-explain" hidden>Explain more</button>
+                        </div>
+                        <div class="explain-panel" id="dmarc-explain" aria-hidden="true"></div>
                     </div>
                 </div>
 
@@ -50,29 +63,6 @@
                     <div class="verdict-text">
                         <h3 id="verdict-title">Email Security Status</h3>
                         <p id="verdict-message">Analyzing email authentication...</p>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Detailed Report -->
-            <section class="report-section" id="detailed-report" style="display: none;">
-                <h2>Detailed Security Report</h2>
-                <div class="report-content" id="report-content">
-                    <div class="report-item">
-                        <h4>Sender Information</h4>
-                        <p id="sender-info">-</p>
-                    </div>
-                    <div class="report-item">
-                        <h4>Domain Analysis</h4>
-                        <p id="domain-analysis">-</p>
-                    </div>
-                    <div class="report-item">
-                        <h4>Authentication Details</h4>
-                        <div id="auth-details">-</div>
-                    </div>
-                    <div class="report-item">
-                        <h4>Risk Assessment</h4>
-                        <p id="risk-assessment">-</p>
                     </div>
                 </div>
             </section>

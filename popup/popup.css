@@ -133,12 +133,20 @@ h2 {
 
 .auth-item {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
     padding: 8px 12px;
     background: #f8f9fa;
     border-radius: 6px;
     border-left: 4px solid #dee2e6;
+}
+
+.auth-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: space-between;
 }
 
 .auth-label {
@@ -157,44 +165,86 @@ h2 {
     height: 12px;
     border-radius: 50%;
     background: #dee2e6;
+    flex: 0 0 12px;
+}
+
+/* Toggle button with rotating arrow */
+.explain-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    font-size: 12px;
+    border: none;
+    background: transparent;
+    color: #0d6efd;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.explain-toggle:hover {
+    background: #e7f1ff;
+}
+
+.explain-toggle::after {
+    content: '▶';
+    font-size: 12px;
+    transition: transform 200ms ease;
+}
+
+.explain-toggle[aria-expanded="true"]::after {
+    transform: rotate(90deg);
+}
+
+/* Collapsible panel */
+.explain-panel {
+    display: block;           /* important: do not rely on inline display */
+    width: 100%;
+    background: #f1f3f5;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    margin-top: 2px;
+    padding: 0;
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: max-height 280ms ease, opacity 200ms ease, padding 200ms ease;
+    word-break: break-word;
+}
+
+.explain-panel.expanded {
+    padding: 10px 12px;
+    max-height: 500px;
+    opacity: 1;
+}
+
+/* Content inside explain panel */
+.explain-panel .explain-section {
+    margin-bottom: 8px;
+}
+
+.explain-panel .explain-section:last-child {
+    margin-bottom: 0;
+}
+
+.explain-panel .explain-title {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 4px;
 }
 
 /* Status Colors */
-.auth-item.pass {
-    border-left-color: #28a745;
-}
+.auth-item.pass { border-left-color: #28a745; }
+.auth-item.pass .auth-indicator { background: #28a745; }
+.auth-item.pass .auth-status { color: #28a745; }
 
-.auth-item.pass .auth-indicator {
-    background: #28a745;
-}
+.auth-item.fail { border-left-color: #dc3545; }
+.auth-item.fail .auth-indicator { background: #dc3545; }
+.auth-item.fail .auth-status { color: #dc3545; }
 
-.auth-item.pass .auth-status {
-    color: #28a745;
-}
-
-.auth-item.fail {
-    border-left-color: #dc3545;
-}
-
-.auth-item.fail .auth-indicator {
-    background: #dc3545;
-}
-
-.auth-item.fail .auth-status {
-    color: #dc3545;
-}
-
-.auth-item.warning {
-    border-left-color: #ffc107;
-}
-
-.auth-item.warning .auth-indicator {
-    background: #ffc107;
-}
-
-.auth-item.warning .auth-status {
-    color: #856404;
-}
+.auth-item.warning { border-left-color: #ffc107; }
+.auth-item.warning .auth-indicator { background: #ffc107; }
+.auth-item.warning .auth-status { color: #856404; }
 
 /* Overall Verdict */
 .overall-verdict {
