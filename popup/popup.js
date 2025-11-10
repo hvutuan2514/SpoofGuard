@@ -303,15 +303,14 @@ class SpoofGuardPopup {
                 <strong>Security Score:</strong> ${analysis.securityScore}/100
             `;
             
-            // Show authentication results
             const authResults = document.getElementById('auth-results');
             authResults.style.display = 'block';
 
-            this.updateAuthResult('spf', analysis.spf?.status || 'unknown');
-            this.updateAuthResult('dkim', analysis.dkim?.status || 'unknown');
-            this.updateAuthResult('dmarc', analysis.dmarc?.status || 'unknown');
+            // Pass full per-check objects to updateAuthResult
+            this.updateAuthResult('spf', analysis.spf || { status: 'unknown' });
+            this.updateAuthResult('dkim', analysis.dkim || { status: 'unknown' });
+            this.updateAuthResult('dmarc', analysis.dmarc || { status: 'unknown' });
 
-            // Show overall verdict
             this.updateOverallVerdict(analysis);
         } else {  
             const authResults = document.getElementById('auth-results');
@@ -321,23 +320,95 @@ class SpoofGuardPopup {
         }
     }
 
-    updateAuthResult(type, status) {
+    updateAuthResult(type, data) {
+        const status = (typeof data === 'string') ? data : (data.status || 'unknown');
+
         const resultElement = document.getElementById(`${type}-result`);
         const statusElement = document.getElementById(`${type}-status`);
         const indicatorElement = document.getElementById(`${type}-indicator`);
+        const toggleButton = document.getElementById(`${type}-explain-toggle`);
+        const explainPanel = document.getElementById(`${type}-explain`);
 
-        statusElement.textContent = status.toUpperCase();
-        
-        // Remove existing classes
+        statusElement.textContent = (status || 'unknown').toUpperCase();
+
         resultElement.classList.remove('pass', 'fail', 'warning');
-        
-        // Add appropriate class based on status
         if (status === 'pass') {
             resultElement.classList.add('pass');
         } else if (status === 'fail') {
             resultElement.classList.add('fail');
         } else {
             resultElement.classList.add('warning');
+        }
+
+        const explanation = typeof data === 'object' ? (data.explain || data.explanation || '') : '';
+        const details = typeof data === 'object' ? (data.details || '') : '';
+
+        const isUnknown = ['unknown', 'none', 'missing'].includes((status || '').toLowerCase());
+        const needsFallback = isUnknown && !explanation && !details;
+
+        // Fallback reasons for unknown DKIM/DMARC
+        let fallbackExplain = '';
+        let fallbackDetailsHtml = '';
+        if (needsFallback) {
+            if (type === 'dkim') {
+                fallbackExplain = 'DKIM result is not available for this message.';
+                fallbackDetailsHtml = `
+                    <ul>
+                        <li>No DKIM signature present for the sending domain.</li>
+                        <li>Signature present but verification omitted in Authentication-Results.</li>
+                        <li>Message was forwarded or sent via a mailing list (ARC may exist).</li>
+                        <li>Provider omitted DKIM evaluation for this message.</li>
+                    </ul>`;
+            } else if (type === 'dmarc') {
+                fallbackExplain = 'DMARC result is not available for this message.';
+                fallbackDetailsHtml = `
+                    <ul>
+                        <li>Domain may not publish a DMARC policy or uses p=none.</li>
+                        <li>Forwarding or list processing can prevent DMARC recording.</li>
+                        <li>Alignment could not be evaluated (missing/non-aligned SPF/DKIM IDs).</li>
+                        <li>Provider omitted DMARC evaluation in the headers.</li>
+                    </ul>`;
+            }
+        }
+
+        const finalExplain = explanation || fallbackExplain;
+        const finalDetailsHtml = details
+            ? `<div>${this.escapeHtml(details)}</div>`
+            : fallbackDetailsHtml;
+
+        if (finalExplain || finalDetailsHtml) {
+            toggleButton.hidden = false;
+            toggleButton.textContent = 'Explain more';
+            toggleButton.setAttribute('aria-expanded', 'false');
+
+            explainPanel.classList.remove('expanded');
+            explainPanel.setAttribute('aria-hidden', 'true');
+            explainPanel.innerHTML = `
+                ${finalExplain ? `
+                    <div class="explain-section">
+                        <div class="explain-title">What this means</div>
+                        <div>${this.escapeHtml(finalExplain)}</div>
+                    </div>` : ''}
+                ${finalDetailsHtml ? `
+                    <div class="explain-section">
+                        <div class="explain-title">Technical details</div>
+                        ${finalDetailsHtml}
+                    </div>` : ''}
+            `;
+
+            // Toggle using the 'expanded' class for animation
+            toggleButton.onclick = () => {
+                const expanded = toggleButton.getAttribute('aria-expanded') === 'true';
+                const next = !expanded;
+                toggleButton.setAttribute('aria-expanded', next ? 'true' : 'false');
+                explainPanel.classList.toggle('expanded', next);
+                explainPanel.setAttribute('aria-hidden', next ? 'false' : 'true');
+            };
+        } else {
+            toggleButton.hidden = true;
+            explainPanel.classList.remove('expanded');
+            explainPanel.setAttribute('aria-hidden', 'true');
+            explainPanel.innerHTML = '';
         }
     }
 

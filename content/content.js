@@ -262,6 +262,8 @@ class SpoofGuardContent {
                 // If inbox view, clear analysis and do not analyze
                 if (this.isInboxView()) {
                     console.log('SpoofGuard: Inbox view detected; clearing current analysis');
+                    const indicator = document.getElementById('spoofguard-indicator');
+                    if (indicator) indicator.remove();
                     this.currentEmail = null;
                     return;
                 }
@@ -1212,10 +1214,7 @@ class SpoofGuardContent {
             ...analysis
         };
 
-        // Show visual indicator if enabled
-        if (this.settings.realTimeMonitoring) {
-            this.showSecurityIndicator(analysis);
-        }
+
 
         // Log if detailed logging is enabled
         if (this.settings.detailedLogging) {
@@ -1235,7 +1234,6 @@ class SpoofGuardContent {
         const domain = this.extractDomain(emailData.sender);
         const isKnownProvider = this.isKnownEmailProvider(domain);
 
-        // Detect spam/danger context regardless of API vs DOM source
         const currentUrl = window.location.href;
         const dangerBanner = Array.from(document.querySelectorAll('[role="alert"], .aCz, .aCk'))
             .some(el => /dangerous|phishing|why is this message in spam/i
@@ -1247,39 +1245,44 @@ class SpoofGuardContent {
             currentUrl.includes('search=in%3Aspam') ||
             dangerBanner;
         
-        // Use actual authentication results if available
         let spfStatus = 'unknown';
         let dkimStatus = 'unknown';
         let dmarcStatus = 'unknown';
         let hasAuthResults = false;
+
+        // Initialize per-check detail/explanation containers
+        let spfDetails = '';
+        let dkimDetails = '';
+        let dmarcDetails = '';
+        let spfExplain = '';
+        let dkimExplain = '';
+        let dmarcExplain = '';
         
         if (emailData.authResults && typeof emailData.authResults === 'object') {
             console.log('SpoofGuard: Using actual authentication results:', emailData.authResults);
-            
             hasAuthResults = true;
 
-            // Support both string and object shapes for each auth result
             const spfRaw = emailData.authResults.spf;
             const dkimRaw = emailData.authResults.dkim;
             const dmarcRaw = emailData.authResults.dmarc;
 
-            spfStatus = this.normalizeAuthStatus(
-                typeof spfRaw === 'string' ? spfRaw : (spfRaw && spfRaw.status) || 'unknown'
-            );
-            dkimStatus = this.normalizeAuthStatus(
-                typeof dkimRaw === 'string' ? dkimRaw : (dkimRaw && dkimRaw.status) || 'unknown'
-            );
-            dmarcStatus = this.normalizeAuthStatus(
-                typeof dmarcRaw === 'string' ? dmarcRaw : (dmarcRaw && dmarcRaw.status) || 'unknown'
-            );
+            spfStatus = this.normalizeAuthStatus(typeof spfRaw === 'string' ? spfRaw : (spfRaw && spfRaw.status) || 'unknown');
+            dkimStatus = this.normalizeAuthStatus(typeof dkimRaw === 'string' ? dkimRaw : (dkimRaw && dkimRaw.status) || 'unknown');
+            dmarcStatus = this.normalizeAuthStatus(typeof dmarcRaw === 'string' ? dmarcRaw : (dmarcRaw && dmarcRaw.status) || 'unknown');
+
+            spfDetails = typeof spfRaw === 'object' ? (spfRaw.details || '') : '';
+            dkimDetails = typeof dkimRaw === 'object' ? (dkimRaw.details || '') : '';
+            dmarcDetails = typeof dmarcRaw === 'object' ? (dmarcRaw.details || '') : '';
+
+            spfExplain = typeof spfRaw === 'object' ? (spfRaw.explanation || '') : '';
+            dkimExplain = typeof dkimRaw === 'object' ? (dkimRaw.explanation || '') : '';
+            dmarcExplain = typeof dmarcRaw === 'object' ? (dmarcRaw.explanation || '') : '';
         } else {
             console.log('SpoofGuard: No authentication results found, using fallback analysis');
-            
-            // Fallback: Simulate authentication results based on sender domain
             if (!isKnownProvider) {
                 spfStatus = Math.random() > 0.7 ? 'fail' : 'pass';
-                dkimStatus = Math.random() > 0.8 ? 'fail' : 'pass';
-                dmarcStatus = Math.random() > 0.9 ? 'fail' : 'pass';
+                dkimStatus = Math.random() > 0.6 ? 'fail' : 'pass';
+                dmarcStatus = (spfStatus === 'pass' || dkimStatus === 'pass') ? 'pass' : 'fail';
             } else {
                 spfStatus = 'pass';
                 dkimStatus = 'pass';
@@ -1288,34 +1291,27 @@ class SpoofGuardContent {
         }
 
         const analysis = {
-            spf: { 
-                status: spfStatus, 
-                details: (emailData.authResults && emailData.authResults.spf && emailData.authResults.spf.details)
-                         ? emailData.authResults.spf.details
-                         : `SPF authentication: ${spfStatus}` 
-            },
-            dkim: { 
-                status: dkimStatus, 
-                details: (emailData.authResults && emailData.authResults.dkim && emailData.authResults.dkim.details)
-                         ? emailData.authResults.dkim.details
-                         : `DKIM signature: ${dkimStatus}` 
-            },
-            dmarc: { 
-                status: dmarcStatus, 
-                details: (emailData.authResults && emailData.authResults.dmarc && emailData.authResults.dmarc.details)
-                         ? emailData.authResults.dmarc.details
-                         : `DMARC policy: ${dmarcStatus}` 
-            },
+            hasAuthResults,
+            isKnownProvider,
             domain: domain,
-            isKnownProvider: isKnownProvider,
-            hasAuthResults: hasAuthResults,
-            isInSpamFolder: isInSpamFolder
+            isInSpamFolder: isInSpamFolder,
+            spf: { status: spfStatus, details: spfDetails, explain: spfExplain },
+            dkim: { status: dkimStatus, details: dkimDetails, explain: dkimExplain },
+            dmarc: { status: dmarcStatus, details: dmarcDetails, explain: dmarcExplain }
         };
+
+        // Penalties/flags for spam folder
+        if (isInSpamFolder && !hasAuthResults) {
+            ['spf', 'dkim', 'dmarc'].forEach((k) => {
+                analysis[k].status = 'suspicious';
+                analysis[k].details = 'Email found in spam folder or flagged as dangerous';
+                analysis[k].explain = 'Suspicious: Gmail flagged this message as dangerous';
+            });
+        }
 
         analysis.securityScore = this.calculateSecurityScore(analysis);
         analysis.riskLevel = this.determineRiskLevel(analysis);
 
-        console.log('SpoofGuard: Final analysis:', analysis);
         return analysis;
     }
 

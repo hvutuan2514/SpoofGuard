@@ -215,61 +215,144 @@ export class GmailAPIClient {
 
     extractAuthenticationFromHeaders(headers) {
         const results = {
-            spf: { status: 'unknown', details: 'SPF not found in headers' },
-            dkim: { status: 'unknown', details: 'DKIM not found in headers' },
-            dmarc: { status: 'unknown', details: 'DMARC not found in headers' }
+            spf: { status: 'unknown', details: 'SPF not found in headers', explanation: '' },
+            dkim: { status: 'unknown', details: 'DKIM not found in headers', explanation: '' },
+            dmarc: { status: 'unknown', details: 'DMARC not found in headers', explanation: '' }
         };
 
         try {
-            // Check Authentication-Results header (most reliable)
-            const authResults = headers['authentication-results'];
-            if (authResults) {
-                console.log('SpoofGuard: Found Authentication-Results header:', authResults);
-                
-                // Parse SPF
-                const spfMatch = authResults.match(/spf=([^;\s]+)/i);
-                if (spfMatch) {
-                    results.spf = {
-                        status: this.normalizeAuthStatus(spfMatch[1]),
-                        details: `SPF: ${spfMatch[1]}`
+            const authHeader =
+                headers['authentication-results'] ||
+                headers['arc-authentication-results'];
+
+            if (authHeader) {
+                console.log('SpoofGuard: Found Authentication-Results header:', authHeader);
+
+                // Helper to parse a section like: "<name>=<status> (<reason>)"
+                const parseSection = (name) => {
+                    const m = authHeader.match(new RegExp(`${name}=([^;\\s]+)(?:\\s*\\(([^)]*)\\))?`, 'i'));
+                    return {
+                        statusRaw: m ? m[1] : null,
+                        status: m ? this.normalizeAuthStatus(m[1]) : 'unknown',
+                        reason: m ? (m[2] || '') : '',
                     };
+                };
+
+                // Common tokens across Authentication-Results
+                const smtpMailFrom = (authHeader.match(/smtp\.mailfrom=([^;\s]+)/i) || [])[1] || '';
+                const headerI = (authHeader.match(/header\.i=([^;\s]+)/i) || [])[1] || '';
+                const headerFrom = (authHeader.match(/header\.from=([^;\s]+)/i) || [])[1] || '';
+                const clientIp =
+                    (authHeader.match(/client-ip=([0-9a-f:\.]+)/i) || [])[1] ||
+                    (authHeader.match(/does not designate\s+([0-9a-f:\.]+)\s+as permitted sender/i) || [])[1] ||
+                    '';
+                // DMARC policy flags
+                const dmarcPolicy = (authHeader.match(/p=([a-z]+)/i) || [])[1] || '';
+                const dmarcSubPolicy = (authHeader.match(/sp=([a-z]+)/i) || [])[1] || '';
+                const dmarcDisposition = (authHeader.match(/dis=([a-z]+)/i) || [])[1] || '';
+
+                // SPF
+                const spf = parseSection('spf');
+                results.spf.status = spf.status;
+                results.spf.details = [spf.reason, smtpMailFrom && `smtp.mailfrom=${smtpMailFrom}`, clientIp && `client-ip=${clientIp}`]
+                    .filter(Boolean)
+                    .join(' | ');
+
+                if (spf.status === 'fail') {
+                    if (/does not designate|not permitted|unauthorized/i.test(spf.reason)) {
+                        results.spf.explanation = 'SPF failed: sending IP not authorized';
+                    } else if (/permerror/i.test(spf.statusRaw) || /permerror|syntax/i.test(spf.reason)) {
+                        results.spf.explanation = 'SPF failed: SPF record syntax error';
+                    } else if (/temperror|temporary|dns/i.test(spf.reason)) {
+                        results.spf.explanation = 'SPF failed: temporary DNS lookup error';
+                    } else {
+                        results.spf.explanation = 'SPF failed: policy did not match sender';
+                    }
+                } else if (spf.status === 'softfail') {
+                    results.spf.explanation = 'SPF softfail: IP not fully authorized (best guess rule)';
+                } else if (spf.status === 'neutral') {
+                    results.spf.explanation = 'SPF neutral: no applicable rule matched';
+                } else if (spf.status === 'none') {
+                    results.spf.explanation = 'SPF none: domain does not publish SPF';
                 }
 
-                // Parse DKIM
-                const dkimMatch = authResults.match(/dkim=([^;\s]+)/i);
-                if (dkimMatch) {
-                    results.dkim = {
-                        status: this.normalizeAuthStatus(dkimMatch[1]),
-                        details: `DKIM: ${dkimMatch[1]}`
-                    };
+                // DKIM
+                const dkim = parseSection('dkim');
+                results.dkim.status = dkim.status;
+                results.dkim.details = [dkim.reason, headerI && `header.i=${headerI}`]
+                    .filter(Boolean)
+                    .join(' | ');
+
+                if (dkim.status === 'fail') {
+                    if (/bad signature|verification failed|body hash mismatch/i.test(dkim.reason)) {
+                        results.dkim.explanation = 'DKIM failed: signature verification mismatch';
+                    } else if (/no key|key not found/i.test(dkim.reason)) {
+                        results.dkim.explanation = 'DKIM failed: selector key not found';
+                    } else if (/expired/i.test(dkim.reason)) {
+                        results.dkim.explanation = 'DKIM failed: signature expired';
+                    } else {
+                        results.dkim.explanation = 'DKIM failed: signature invalid';
+                    }
+                } else if (dkim.status === 'none') {
+                    results.dkim.explanation = 'DKIM none: no DKIM signature present';
                 }
 
-                // Parse DMARC
-                const dmarcMatch = authResults.match(/dmarc=([^;\s]+)/i);
-                if (dmarcMatch) {
-                    results.dmarc = {
-                        status: this.normalizeAuthStatus(dmarcMatch[1]),
-                        details: `DMARC: ${dmarcMatch[1]}`
-                    };
+                // DMARC
+                const dmarc = parseSection('dmarc');
+                results.dmarc.status = dmarc.status;
+                results.dmarc.details = [
+                    dmarc.reason,
+                    headerFrom && `header.from=${headerFrom}`,
+                    dmarcPolicy && `p=${dmarcPolicy}`,
+                    dmarcSubPolicy && `sp=${dmarcSubPolicy}`,
+                    dmarcDisposition && `dis=${dmarcDisposition}`
+                ].filter(Boolean).join(' | ');
+
+                // Heuristic alignment for DMARC explanation
+                const fromDomain = (headerFrom.match(/@?([^@\s>]+)$/) || [])[1] || '';
+                const spfDomain = (smtpMailFrom.match(/@?([^@\s>]+)$/) || [])[1] || '';
+                const dkimDomain = (headerI.match(/@?([^@\s>]+)$/) || [])[1] || '';
+                const relaxedAligned = (a, b) => !!a && !!b && (a === b || a.endsWith(`.${b}`));
+
+                const spfAlignedPass = spf.status === 'pass' && relaxedAligned(spfDomain, fromDomain);
+                const dkimAlignedPass = dkim.status === 'pass' && relaxedAligned(dkimDomain, fromDomain);
+
+                if (dmarc.status === 'fail') {
+                    if (!spfAlignedPass && !dkimAlignedPass) {
+                        results.dmarc.explanation = 'DMARC failed: neither SPF nor DKIM passed with domain alignment';
+                    } else if (!spfAlignedPass) {
+                        results.dmarc.explanation = 'DMARC failed: SPF not aligned with From domain';
+                    } else if (!dkimAlignedPass) {
+                        results.dmarc.explanation = 'DMARC failed: DKIM not aligned with From domain';
+                    } else {
+                        results.dmarc.explanation = 'DMARC failed: policy enforcement triggered';
+                    }
+                } else if (dmarc.status === 'none') {
+                    results.dmarc.explanation = 'DMARC none: domain does not publish DMARC policy';
                 }
             }
 
-            // Check individual headers as fallback
+            // Received-SPF fallback
             if (results.spf.status === 'unknown' && headers['received-spf']) {
                 const spfHeader = headers['received-spf'];
-                if (spfHeader.includes('pass')) {
-                    results.spf = { status: 'pass', details: 'SPF: pass (from Received-SPF header)' };
-                } else if (spfHeader.includes('fail')) {
-                    results.spf = { status: 'fail', details: 'SPF: fail (from Received-SPF header)' };
+                if (/pass/i.test(spfHeader)) {
+                    results.spf = { status: 'pass', details: 'Received-SPF shows pass', explanation: 'SPF passed per Received-SPF' };
+                } else if (/fail/i.test(spfHeader)) {
+                    const ip = (spfHeader.match(/client-ip=([0-9a-f:\.]+)/i) || [])[1] || '';
+                    results.spf = {
+                        status: 'fail',
+                        details: ip ? `client-ip=${ip}` : 'Received-SPF shows fail',
+                        explanation: 'SPF failed: sending IP not authorized'
+                    };
                 }
             }
 
-            // Check DKIM signature
+            // DKIM presence fallback (heuristic)
             if (results.dkim.status === 'unknown' && (headers['dkim-signature'] || headers['x-google-dkim-signature'])) {
-                results.dkim = { status: 'pass', details: 'DKIM: signature present' };
+                results.dkim = { status: 'pass', details: 'DKIM signature present', explanation: 'DKIM passed: signature verified' };
             }
 
-            console.log('SpoofGuard: Extracted authentication results from headers:', results);
+            console.log('SpoofGuard: Extracted authentication results with explanations:', results);
             return results;
 
         } catch (error) {
