@@ -3,23 +3,27 @@ import pandas as pd
 import spacy
 import string
 import re
+import json
 import tensorflow as tf
 import gensim
+import numpy as np
 from nltk.corpus import stopwords
 from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.preprocessing.sequence import pad_sequences
 from keras.models import Sequential
 from keras.utils import to_categorical
 from keras.layers import Dense, Embedding,LSTM, Dropout, GRU
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import normalize
+from sklearn.naive_bayes import MultinomialNB
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import LabelEncoder
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
-from sklearn.naive_bayes import MultinomialNB
+from sklearn.utils.class_weight import compute_class_weight
 
 
 
@@ -28,7 +32,7 @@ import time
 start = time.time()
 
 #input data from excel file
-df = pd.read_excel("data/SEFACED_Email_Forensic_Dataset.xlsx")
+df = pd.read_excel("/SEFACED_Email_Forensic_Dataset.xlsx")
 
 #For testing purposes
 print(df.head())
@@ -38,6 +42,10 @@ print(df.head())
 ###Data Pre-processing###
 
 #nltk.download('stopwords')
+import nltk
+nltk.download('stopwords')
+nltk.download('punkt')
+nltk.download('wordnet')
 
 stop_words = set(stopwords.words('english'))
 punctuation = set(string.punctuation)
@@ -101,27 +109,18 @@ tfidf = TfidfVectorizer()
 X_train_tfidf = tfidf.fit_transform(X_train)
 X_val_tfidf = tfidf.transform(X_val)
 X_test_tfidf = tfidf.transform(X_test)
-print('TF-IDF:')
-print(X_train_tfidf.shape)
+
 
 #Bag of Words
 vector = CountVectorizer()
 bag_of_words = vector.fit_transform(X_text)
 words = vector.get_feature_names_out()
 word_counts = bag_of_words.toarray().sum(axis=0)
-print('Bag of Words:')
-word_counts_2D = word_counts.reshape((-1, 1))
-word_normalized = normalize(word_counts_2D, norm='l2')
 
 #Word2vector
 tokenized_text = [text.split() for text in X_text]
 word2vec_cbow_model = gensim.models.Word2Vec(sentences=tokenized_text, min_count=1, vector_size=100, window=5)
 word2vec_sg_model = gensim.models.Word2Vec(sentences=tokenized_text, min_count=1, window=5, sg=1)
-print('CBOW results for click:')
-print(word2vec_cbow_model.wv.most_similar('click'))
-print('SG results for click:')
-print('SG results for click:')
-print(word2vec_sg_model.wv.most_similar('click'))
 
 
 
@@ -135,58 +134,72 @@ y_test_le = label_encoder.transform(y_test)
 
 ###Machine Learning Models to compare###
 
-#Logistic  Regression
-lr_model = LogisticRegression()
-lr_model.fit(X_train_tfidf, y_train_le)
-# Evaluate the model's accuracy
-y_pred = lr_model.predict(X_test_tfidf)
-accuracy = accuracy_score(y_test_le, y_pred)
-print(f"Accuracy of Logistic Regression: {accuracy:.2f}")
+# #Logistic  Regression
+# lr_model = LogisticRegression()
+# lr_model.fit(X_train_tfidf, y_train_le)
+# # Evaluate the model's accuracy
+# y_pred = lr_model.predict(X_test_tfidf)
+# accuracy = accuracy_score(y_test_le, y_pred)
+# print(f"Accuracy of Logistic Regression: {accuracy:.2f}")
 
-#Support Vector Machine
-svm_model = SVC(kernel='linear')
-svm_model.fit(X_train_tfidf, y_train_le)
-# Evaluate the model's accuracy
-y_pred = svm_model.predict(X_test_tfidf)
-accuracy = accuracy_score(y_test_le, y_pred)
-print(f"Accuracy of SVM: {accuracy:.2f}")
+# #Support Vector Machine
+# svm_model = SVC(kernel='linear')
+# svm_model.fit(X_train_tfidf, y_train_le)
+# # Evaluate the model's accuracy
+# y_pred = svm_model.predict(X_test_tfidf)
+# accuracy = accuracy_score(y_test_le, y_pred)
+# print(f"Accuracy of SVM: {accuracy:.2f}")
 
-#Stochastic Gradient Descent
+# #Stochastic Gradient Descent
 
 
-#Naive Bayes
-nb_model = MultinomialNB()
-nb_model.fit(X_train_tfidf, y_train_le)
-# Evaluate the model's accuracy
-y_pred = nb_model.predict(X_test_tfidf)
-accuracy = accuracy_score(y_test_le, y_pred)
-print(f"Accuracy of Naive Bayes: {accuracy:.2f}")
+# #Naive Bayes
+# nb_model = MultinomialNB()
+# nb_model.fit(X_train_tfidf, y_train_le)
+# # Evaluate the model's accuracy
+# y_pred = nb_model.predict(X_test_tfidf)
+# accuracy = accuracy_score(y_test_le, y_pred)
+# print(f"Accuracy of Naive Bayes: {accuracy:.2f}")
 
-#Random Forest
-rf_model = RandomForestClassifier()
-rf_model.fit(X_train_tfidf, y_train_le)
-# Evaluate the model's accuracy
-y_pred = rf_model.predict(X_test_tfidf)
-accuracy = accuracy_score(y_test_le, y_pred)
-print(f"Accuracy of Random Forest: {accuracy:.2f}")
+# #Random Forest
+# rf_model = RandomForestClassifier()
+# rf_model.fit(X_train_tfidf, y_train_le)
+# # Evaluate the model's accuracy
+# y_pred = rf_model.predict(X_test_tfidf)
+# accuracy = accuracy_score(y_test_le, y_pred)
+# print(f"Accuracy of Random Forest: {accuracy:.2f}")
 
 
 
 #parameters defined in paper
 vocab_size = 70000
 embedding_dim = 800
-length = 600
+max_length = 600
 
-tokenizer = Tokenizer()
+tokenizer = Tokenizer(oov_token="<OOV>", filters="")
 tokenizer.fit_on_texts(X_train)
+
+
+def padded_length(sequences, maxlen):
+    seq = tokenizer.texts_to_sequences(sequences)
+    return pad_sequences(seq, maxlen=maxlen, padding="post")
+
+class_weights = compute_class_weight(
+    class_weight='balanced',
+    classes=np.unique(y_train_le),
+    y=y_train_le
+)
+
+class_weights = dict(enumerate(class_weights))
+print("Class weights:", class_weights)
 
 X_train_seq = tokenizer.texts_to_sequences(X_train)
 X_val_seq = tokenizer.texts_to_sequences(X_val)
 X_test_seq = tokenizer.texts_to_sequences(X_test)
 
-X_train_pad = pad_sequences(X_train_seq, maxlen=length, padding="post")
-X_val_pad = pad_sequences(X_val_seq, maxlen=length, padding="post")
-X_test_pad = pad_sequences(X_test_seq, maxlen=length, padding="post")
+X_train_pad = pad_sequences(X_train_seq, maxlen=max_length, padding="post")
+X_val_pad = pad_sequences(X_val_seq, maxlen=max_length, padding="post")
+X_test_pad = pad_sequences(X_test_seq, maxlen=max_length, padding="post")
 
 num_classes = len(label_encoder.classes_)
 y_train_cat = tf.keras.utils.to_categorical(y_train_le, num_classes)
@@ -195,41 +208,58 @@ y_test_cat = tf.keras.utils.to_categorical(y_test_le, num_classes)
 
 #LSTM-GRU Model architecture
 model = Sequential([
-    Embedding(input_dim=vocab_size, output_dim=embedding_dim, input_length=length),
+    Embedding(input_dim=vocab_size, output_dim=embedding_dim, input_length=max_length),
     #LSTM layer 1
-    LSTM(250, return_sequences=True, bias_initializer='zeros'),
+    LSTM(250, return_sequences=True),
     #LSTM layer 2
-    LSTM(250, return_sequences=True, bias_initializer='zeros'),
+    #LSTM(250, return_sequences=True),
     #GRU layer
-    GRU(250, return_sequences=False, bias_initializer='zeros'),
+    GRU(250, return_sequences=False),
 ])
 #Internal Dense Layers with Dropout
 for _ in range(10):
-    model.add(Dense(64, activation='relu', bias_initializer='zeros'))
-    model.add(Dropout(0.5))
-    
+    model.add(Dense(32, activation='relu'))
+    model.add(Dropout(0.3))
+
 #Output Layer
 model.add(Dense(4, activation='softmax'))
 
 #Compile the model
-model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
-model.build(input_shape=(None, length))
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+model.build(input_shape=(None, max_length))
 model.summary()
 print("LSTM-GRU Model Compiled")
 #Train the model
-early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=1, restore_best_weights=True)
+checkpoint = ModelCheckpoint('best_model.keras', monitor='val_accuracy', save_best_only=True, mode='max', verbose=1)
+earlystopping = EarlyStopping(monitor='val_accuracy', patience=3, restore_best_weights=True)
 history = model.fit(
     X_train_pad, y_train_cat,
     validation_data=(X_val_pad, y_val_cat),
     epochs=20,
     batch_size=64,
-    callbacks=[early_stopping]
+    callbacks=[earlystopping],
+    class_weight=class_weights,
+    verbose=1
 )
 #Evaluate the model
 loss, accuracy = model.evaluate(X_test_pad, y_test_cat)
 print(f'Test Accuracy: {accuracy:.2f}')
 
-model.save('sefacd_email_model.h5')
+
+
+#Save model and tokenizer
+import pickle
+with open('tokenizer.pickle', 'wb') as handle:
+    pickle.dump(tokenizer, handle)
+meta = {
+    'label_classes': list(label_encoder.classes_),
+    'maxlen': max_length,
+    'vocab_size': vocab_size,
+    'embedding_dim': embedding_dim
+}
+with open('meta.json', 'w') as handle:
+    json.dump(meta, handle)
+model.save('sefacd_email_model.keras')
 
 
 
