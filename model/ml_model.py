@@ -271,7 +271,7 @@ meta = {
 }
 with open('meta.json', 'w') as handle:
     json.dump(meta, handle)
-model.save('sefacd_email_model.keras')
+model.save('sefaced_email_model.keras')
 
 
 
