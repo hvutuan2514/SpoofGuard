@@ -6,6 +6,7 @@ import re
 import json
 import tensorflow as tf
 import gensim
+from gensim.models import Word2Vec
 import numpy as np
 from nltk.corpus import stopwords
 from tensorflow.keras.preprocessing.text import Tokenizer
@@ -13,7 +14,7 @@ from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.preprocessing.sequence import pad_sequences
 from keras.models import Sequential
 from keras.utils import to_categorical
-from keras.layers import Dense, Embedding,LSTM, Dropout, GRU
+from keras.layers import Dense, Embedding,LSTM, Dropout, GRU, Bidirectional
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import normalize
 from sklearn.naive_bayes import MultinomialNB
@@ -25,14 +26,17 @@ from sklearn.metrics import accuracy_score
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.utils.class_weight import compute_class_weight
 
-
+# !pip install gensim
+# !pip install --upgrade gensim
+# !wget http://nlp.stanford.edu/data/glove.6B.zip
+# !unzip glove.6B.zip
 
 #for runtime
 import time
 start = time.time()
 
 #input data from excel file
-df = pd.read_excel("/SEFACED_Email_Forensic_Dataset.xlsx")
+df = pd.read_excel("/content/SEFACED_Email_Forensic_Dataset.xlsx")
 
 #For testing purposes
 print(df.head())
@@ -170,10 +174,9 @@ y_test_le = label_encoder.transform(y_test)
 # print(f"Accuracy of Random Forest: {accuracy:.2f}")
 
 
-
 #parameters defined in paper
 vocab_size = 70000
-embedding_dim = 800
+embedding_dim = 300
 max_length = 600
 
 tokenizer = Tokenizer(oov_token="<OOV>", filters="")
@@ -183,15 +186,6 @@ tokenizer.fit_on_texts(X_train)
 def padded_length(sequences, maxlen):
     seq = tokenizer.texts_to_sequences(sequences)
     return pad_sequences(seq, maxlen=maxlen, padding="post")
-
-class_weights = compute_class_weight(
-    class_weight='balanced',
-    classes=np.unique(y_train_le),
-    y=y_train_le
-)
-
-class_weights = dict(enumerate(class_weights))
-print("Class weights:", class_weights)
 
 X_train_seq = tokenizer.texts_to_sequences(X_train)
 X_val_seq = tokenizer.texts_to_sequences(X_val)
@@ -206,20 +200,38 @@ y_train_cat = tf.keras.utils.to_categorical(y_train_le, num_classes)
 y_val_cat = tf.keras.utils.to_categorical(y_val_le, num_classes)
 y_test_cat = tf.keras.utils.to_categorical(y_test_le, num_classes)
 
+#for embedding matrix
+
+embedding_index = {}
+
+with open('glove.6B.300d.txt', encoding='utf8') as f:
+  for line in f:
+    values = line.split()
+    word = values[0]
+    coeffs = np.asarray(values[1:], dtype='float32')
+    embedding_index[word] = coeffs
+
+embedding_matrix = np.zeros((vocab_size, embedding_dim))
+
+for word, i in tokenizer.word_index.items():
+  if i < vocab_size:
+    vector = embedding_index.get(word)
+    if vector is not None:
+      embedding_matrix[i] = vector
+      
+
 #LSTM-GRU Model architecture
 model = Sequential([
-    Embedding(input_dim=vocab_size, output_dim=embedding_dim, input_length=max_length),
+    Embedding(input_dim=vocab_size, output_dim=embedding_dim, weights= [embedding_matrix], input_length=max_length, trainable=False),
     #LSTM layer 1
-    LSTM(250, return_sequences=True),
-    #LSTM layer 2
-    #LSTM(250, return_sequences=True),
+    Bidirectional(LSTM(250, return_sequences=True)),
     #GRU layer
-    GRU(250, return_sequences=False),
+    Bidirectional(GRU(250, return_sequences=False)),
 ])
 #Internal Dense Layers with Dropout
-for _ in range(10):
-    model.add(Dense(32, activation='relu'))
-    model.add(Dropout(0.3))
+for _ in range(1):
+    model.add(Dense(64, activation='relu'))
+    model.add(Dropout(0.5))
 
 #Output Layer
 model.add(Dense(4, activation='softmax'))
@@ -238,7 +250,7 @@ history = model.fit(
     epochs=20,
     batch_size=64,
     callbacks=[earlystopping],
-    class_weight=class_weights,
+    # class_weight=class_weights,
     verbose=1
 )
 #Evaluate the model
