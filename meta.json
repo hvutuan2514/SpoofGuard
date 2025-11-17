@@ -1,0 +1,1 @@
+{"label_classes": ["Fraudulent", "Harrasment", "Normal", "Suspicious"], "maxlen": 600, "vocab_size": 70000, "embedding_dim": 300}
