@@ -22,7 +22,7 @@
   ],
   
   "oauth2": {
-    "client_id": "851135336689-qsg7eb8q6cp2flqqbeg5afjlb09ftrhv.apps.googleusercontent.com",
+    "client_id": "851135336689-d13un7kiv3v4j6ja3vl0gb5ginghn7i2.apps.googleusercontent.com",
     "scopes": [
       "https://www.googleapis.com/auth/gmail.readonly"
     ]
@@ -30,7 +30,11 @@
   
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "SpoofGuard - Email Security Analysis"
+    "default_title": "SpoofGuard - Email Security Analysis",
+    "default_icon": {
+      "16": "assets/icon16.png",
+      "48": "assets/icon48.png"
+    }
   },
   
   "content_scripts": [
@@ -55,4 +59,10 @@
       "matches": ["<all_urls>"]
     }
   ]
+  ,
+  "icons": {
+    "16": "assets/icon16.png",
+    "48": "assets/icon48.png",
+    "128": "assets/icon128.png"
+  }
 }

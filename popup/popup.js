@@ -178,6 +178,7 @@ class SpoofGuardPopup {
             dkim: { status: 'missing', details: '' },
             dmarc: { status: 'missing', details: '' },
             sender: '',
+            subject: '',
             returnPath: '',
             receivedFrom: '',
             messageId: '',
@@ -197,6 +198,17 @@ class SpoofGuardPopup {
             // Extract sender information
             if (line.startsWith('from:')) {
                 analysis.sender = originalLine.substring(5).trim();
+                // Handle folded header lines
+                while ((i + 1 < lines.length) && regex.test(lines[i + 1])) {
+                    analysis.sender += ' ' + lines[i + 1].trim();
+                    i++;
+                }
+            } else if (line.startsWith('subject:')) {
+                analysis.subject = originalLine.substring(8).trim();
+                while ((i + 1 < lines.length) && regex.test(lines[i + 1])) {
+                    analysis.subject += ' ' + lines[i + 1].trim();
+                    i++;
+                }
             } else if (line.startsWith('return-path:')) {
                 analysis.returnPath = originalLine.substring(12).trim();
             } else if (line.startsWith('message-id:')) {
@@ -295,46 +307,83 @@ class SpoofGuardPopup {
     }
 
     displayEmailAnalysis(analysis) {
-        // Update email info
-        const emailInfo = document.getElementById('email-info');
-        if (analysis && analysis.sender) {
-            emailInfo.innerHTML = `
-                <strong>From:</strong> ${this.escapeHtml(analysis.sender)}
-            `;
-            
-            const authResults = document.getElementById('auth-results');
-            authResults.style.display = 'block';
-
-            // Pass full per-check objects to updateAuthResult
-            this.updateAuthResult('spf', analysis.spf || { status: 'unknown' });
-            this.updateAuthResult('dkim', analysis.dkim || { status: 'unknown' });
-            this.updateAuthResult('dmarc', analysis.dmarc || { status: 'unknown' });
-
-            this.updateAIAnalysis(analysis);
-            this.updateOverallVerdict(analysis);
-        } else {  
-            const authResults = document.getElementById('auth-results');
-            if (authResults) {
-                authResults.style.display = 'none';
-            }
+        if (!(analysis && analysis.sender)) return;
+        const secEl = document.getElementById('security-score');
+        const valEl = document.getElementById('score-value');
+        const badgeEl = document.getElementById('score-badge');
+        const authEl = document.getElementById('score-auth');
+        const contEl = document.getElementById('score-content');
+        const bar = document.getElementById('ring-progress');
+        const authScore = this.computeAuthScore(analysis);
+        const contentScore = this.mapContentScore(analysis.aiClassification);
+        const score = Math.max(0, Math.min(100, authScore + contentScore));
+        secEl.style.display = 'grid';
+        valEl.textContent = String(score);
+        badgeEl.textContent = (analysis.aiClassification || 'Normal').toUpperCase();
+        badgeEl.classList.remove('warn','danger','harass');
+        const badgeTone = this.classTone(analysis.aiClassification);
+        if (badgeTone === 'warn') badgeEl.classList.add('warn');
+        if (badgeTone === 'danger') badgeEl.classList.add('danger');
+        if (badgeTone === 'harass') badgeEl.classList.add('harass');
+        authEl.textContent = `${authScore}/60`;
+        contEl.textContent = `${contentScore}/40`;
+        if (bar) {
+            const p = Math.max(0, Math.min(100, score));
+            bar.style.strokeDashoffset = String(100 - p);
+            const strokeId = p > 60 ? 'ringGradient' : (p > 40 ? 'ringGradientAmber' : 'ringGradientRed');
+            bar.style.stroke = `url(#${strokeId})`;
         }
+
+        const idEl = document.getElementById('identity-section');
+        idEl.style.display = 'grid';
+        document.getElementById('identity-from').textContent = this.escapeHtml(this.formatSender(analysis.sender) || '');
+        const subj = (analysis.subject && String(analysis.subject).trim()) ? analysis.subject : 'No Subject';
+        document.getElementById('identity-subject').textContent = this.escapeHtml(subj);
+
+        const tableEl = document.getElementById('auth-table');
+        tableEl.style.display = 'grid';
+        this.setAuthRow('auth-row-spf', analysis.spf);
+        this.renderAuthExplain('spf', analysis.spf);
+        this.setAuthRow('auth-row-dkim', analysis.dkim);
+        this.renderAuthExplain('dkim', analysis.dkim);
+        this.setAuthRow('auth-row-dmarc', analysis.dmarc);
+        this.renderAuthExplain('dmarc', analysis.dmarc);
+
+        this.updateAIAnalysis(analysis);
+        this.updateOverallVerdict(analysis);
+        const cta = document.getElementById('cta');
+        cta.style.display = 'flex';
     }
 
     updateAIAnalysis(analysis) {
-        const aiSection = document.getElementById('ai-analysis');
-        const aiStatus = document.getElementById('ai-status');
-        const aiProbs = document.getElementById('ai-probs');
-        if (!aiSection || !aiStatus || !aiProbs) return;
-        if (analysis.aiClassification) {
-            aiSection.style.display = 'block';
-            aiStatus.textContent = analysis.aiClassification.toUpperCase();
-            const probs = analysis.aiProbabilities || {};
-            const entries = Object.entries(probs).map(([k,v]) => `${k}: ${(v*100).toFixed(1)}%`);
-            aiProbs.textContent = entries.join(' | ');
+        const card = document.getElementById('ai-card');
+        const cls = document.getElementById('ai-classification');
+        const pts = document.getElementById('ai-points');
+        if (!card || !cls || !pts) return;
+        const label = (analysis.aiClassification || '').trim();
+        if (label) {
+            card.style.display = 'grid';
+            cls.textContent = `Classification: ${label}`;
+            cls.classList.remove('warn','danger','harass');
+            const tone = this.classTone(label);
+            if (tone === 'warn') cls.classList.add('warn');
+            if (tone === 'danger') cls.classList.add('danger');
+            if (tone === 'harass') cls.classList.add('harass');
+            card.classList.remove('secure','warn','danger','harass');
+            if (tone === 'normal') card.classList.add('secure');
+            if (tone === 'warn') card.classList.add('warn');
+            if (tone === 'danger') card.classList.add('danger');
+            // Do not color the entire AI card for harassment; keep it neutral
+            const p = analysis.aiProbabilities || {};
+            const bullets = this.mapBullets(label, p).slice(0, 3);
+            pts.innerHTML = bullets.map(x => `<li>${this.escapeHtml(x)}</li>`).join('');
         } else {
-            aiSection.style.display = 'none';
-            aiStatus.textContent = '-';
-            aiProbs.textContent = '';
+            card.style.display = 'grid';
+            card.classList.remove('secure','warn','danger','harass');
+            cls.classList.remove('warn','danger','harass');
+            cls.textContent = 'Classification: Analysis Available';
+            const bullets = this.mapBullets('suspicious', {}).slice(0,3);
+            pts.innerHTML = bullets.map(x => `<li>${this.escapeHtml(x)}</li>`).join('');
         }
     }
 
@@ -437,32 +486,16 @@ class SpoofGuardPopup {
         const messageElement = document.getElementById('verdict-message');
 
         verdictElement.style.display = 'flex';
-        verdictElement.classList.remove('secure', 'warning', 'danger');
-        iconElement.classList.remove('secure', 'warning', 'danger');
+        verdictElement.classList.remove('secure', 'warning', 'danger', 'harass');
+        iconElement.classList.remove('secure', 'warning', 'danger', 'harass');
 
         let verdictClass, title, message;
         const cls = (analysis.aiClassification || '').toLowerCase();
-        if (cls === 'normal') {
-            verdictClass = 'secure';
-            title = 'Safe to Interact';
-            message = 'AI classification: Normal.';
-        } else if (cls === 'fraudulent') {
-            verdictClass = 'danger';
-            title = 'High Risk - Fraudulent';
-            message = 'AI classification: Fraudulent.';
-        } else if (cls === 'harassing') {
-            verdictClass = 'warning';
-            title = 'Harassing Content';
-            message = 'AI classification: Harassing.';
-        } else if (cls === 'suspicious') {
-            verdictClass = 'warning';
-            title = 'Suspicious Content';
-            message = 'AI classification: Suspicious.';
-        } else {
-            verdictClass = 'warning';
-            title = 'Analysis Available';
-            message = 'Authentication results shown below.';
-        }
+        if (cls === 'normal') { verdictClass = 'secure'; title = 'Safe to Interact'; message = 'This email appears legitimate and safe. All checks passed.'; }
+        else if (cls === 'fraudulent') { verdictClass = 'danger'; title = 'High Risk - Fraudulent'; message = 'Do not engage. Authentication checks or content indicate fraud.'; }
+        else if (cls.includes('harass')) { verdictClass = 'harass'; title = 'Harassment Content'; message = 'Exercise caution. Content indicates harassment.'; }
+        else if (cls === 'suspicious') { verdictClass = 'warning'; title = 'Suspicious Content'; message = 'Be cautious. Content indicates suspicious patterns.'; }
+        else { verdictClass = 'warning'; title = 'Analysis Available'; message = 'Authentication results shown below.'; }
 
         verdictElement.classList.add(verdictClass);
         iconElement.classList.add(verdictClass);
@@ -470,6 +503,52 @@ class SpoofGuardPopup {
         messageElement.textContent = message;
 
         verdictElement.classList.add('fade-in');
+
+        const safeCard = document.getElementById('safe-card');
+        const safeText = document.getElementById('safe-text');
+        if (cls === 'normal') { safeCard.style.display = 'grid'; safeText.textContent = 'This email appears legitimate and safe. All security checks passed with high confidence.'; }
+        else { safeCard.style.display = 'none'; safeText.textContent = ''; }
+    }
+
+    setAuthRow(id, data) {
+        const el = document.getElementById(id);
+        const status = (typeof data === 'string')
+            ? data.toLowerCase()
+            : ((data && data.status) ? String(data.status).toLowerCase() : 'unknown');
+        if (status === 'pass') { el.textContent = 'PASS'; el.className = 'auth-pass'; }
+        else if (status === 'fail') { el.textContent = 'FAIL'; el.className = 'auth-fail'; }
+        else if (status === 'softfail' || status === 'neutral' || status === 'none' || status === 'present' || status === 'unknown') { el.textContent = status.toUpperCase(); el.className = 'auth-warn'; }
+        else { el.textContent = status.toUpperCase(); el.className = ''; }
+    }
+
+    computeAuthScore(analysis) {
+        const scoreFor = (s) => {
+            const st = (s || '').toLowerCase();
+            if (st === 'pass') return 20;
+            if (st === 'softfail' || st === 'neutral' || st === 'present') return 10;
+            return 0;
+        };
+        const spf = scoreFor(analysis?.spf?.status);
+        const dkim = scoreFor(analysis?.dkim?.status);
+        const dmarc = scoreFor(analysis?.dmarc?.status);
+        return Math.max(0, Math.min(60, spf + dkim + dmarc));
+    }
+
+    mapContentScore(label) {
+        const l = (label || '').toLowerCase();
+        if (l === 'normal') return 40;
+        if (l === 'suspicious') return 20;
+        if (l.includes('harass') || l.includes('harras')) return 10;
+        if (l === 'fraudulent') return 0;
+        return 20;
+    }
+
+    mapBullets(label, probs) {
+        const l = (label || '').toLowerCase();
+        if (l === 'normal') return ['Professional language and tone', 'No suspicious links or attachments', 'Known sender domain with good reputation', 'No urgency or pressure tactics', 'Standard business communication patterns'];
+        if (l === 'fraudulent') return ['Deceptive or coercive language', 'Potential phishing indicators', 'Unknown or mismatched sender identity', 'Urgency and pressure tactics', 'Request for sensitive information or payment'];
+        if (l.includes('harass') || l.includes('harras')) return ['Aggressive or abusive tone', 'Targeted harassment indicators', 'Potential policy violations', 'Consider reporting or blocking'];
+        return ['Ambiguous content patterns', 'Be cautious with links or attachments', 'Verify sender identity before action'];
     }
 
     updateDetailedReport(analysis) {
@@ -490,10 +569,96 @@ class SpoofGuardPopup {
             analysis.recommendations.join('. ') || 'No specific risks identified.';
     }
 
+    renderAuthExplain(type, data) {
+        const status = (typeof data === 'string') ? data : (data && data.status || 'unknown');
+        const toggleButton = document.getElementById(`${type}-explain-toggle`);
+        const explainPanel = document.getElementById(`${type}-explain`);
+        if (!toggleButton || !explainPanel) return;
+
+        const explanation = typeof data === 'object' ? (data.explain || data.explanation || '') : '';
+        const details = typeof data === 'object' ? (data.details || '') : '';
+        const isUnknown = ['unknown', 'none', 'missing'].includes(String(status || '').toLowerCase());
+        const needsFallback = isUnknown && !explanation && !details;
+
+        let fallbackExplain = '';
+        let fallbackDetailsHtml = '';
+        if (needsFallback) {
+            if (type === 'dkim') {
+                fallbackExplain = 'DKIM result is not available for this message.';
+                fallbackDetailsHtml = `
+                    <ul>
+                        <li>No DKIM signature present for the sending domain.</li>
+                        <li>Signature present but verification omitted in Authentication-Results.</li>
+                        <li>Message was forwarded or sent via a mailing list (ARC may exist).</li>
+                        <li>Provider omitted DKIM evaluation for this message.</li>
+                    </ul>`;
+            } else if (type === 'dmarc') {
+                fallbackExplain = 'DMARC result is not available for this message.';
+                fallbackDetailsHtml = `
+                    <ul>
+                        <li>Domain may not publish a DMARC policy or uses p=none.</li>
+                        <li>Forwarding or list processing can prevent DMARC recording.</li>
+                        <li>Alignment could not be evaluated (missing/non-aligned SPF/DKIM IDs).</li>
+                        <li>Provider omitted DMARC evaluation in the headers.</li>
+                    </ul>`;
+            }
+        }
+
+        const finalExplain = explanation || fallbackExplain;
+        const finalDetailsHtml = details ? `<div>${this.escapeHtml(details)}</div>` : fallbackDetailsHtml;
+
+        if (finalExplain || finalDetailsHtml) {
+            toggleButton.hidden = false;
+            toggleButton.textContent = 'Explain more';
+            toggleButton.setAttribute('aria-expanded', 'false');
+            explainPanel.classList.remove('expanded');
+            explainPanel.setAttribute('aria-hidden', 'true');
+            explainPanel.innerHTML = `
+                ${finalExplain ? `
+                    <div class="explain-section">
+                        <div class="explain-title">What this means</div>
+                        <div>${this.escapeHtml(finalExplain)}</div>
+                    </div>` : ''}
+                ${finalDetailsHtml ? `
+                    <div class="explain-section">
+                        <div class="explain-title">Technical details</div>
+                        ${finalDetailsHtml}
+                    </div>` : ''}
+            `;
+
+            toggleButton.onclick = () => {
+                const expanded = toggleButton.getAttribute('aria-expanded') === 'true';
+                const next = !expanded;
+                toggleButton.setAttribute('aria-expanded', next ? 'true' : 'false');
+                explainPanel.classList.toggle('expanded', next);
+                explainPanel.setAttribute('aria-hidden', next ? 'false' : 'true');
+            };
+        } else {
+            toggleButton.hidden = true;
+            explainPanel.classList.remove('expanded');
+            explainPanel.setAttribute('aria-hidden', 'true');
+            explainPanel.innerHTML = '';
+        }
+    }
+
     extractDomain(email) {
         if (!email) return null;
         const match = email.match(/@([^>\s]+)/);
         return match ? match[1] : null;
+    }
+
+    formatSender(sender) {
+        if (!sender) return '';
+        const emailMatch = sender.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+        return emailMatch ? emailMatch[0] : sender;
+    }
+
+    classTone(label) {
+        const l = (label || '').toLowerCase();
+        if (l === 'fraudulent') return 'danger';
+        if (l.includes('harass') || l.includes('harras')) return 'harass';
+        if (l === 'suspicious') return 'warn';
+        return 'normal';
     }
 
     escapeHtml(text) {

@@ -546,24 +546,37 @@ class SpoofGuardContent {
                 }
             }
             
-            // Extract subject with multiple selectors
+            // Extract subject with robust selectors and fallbacks
             const subjectSelectors = [
+                'h2.hP',                              // Subject header
                 '.hP .hQ',                            // Subject in header
-                '.bog',                               // Subject element
-                'h2[data-legacy-thread-id]',          // Thread subject
                 '.hP',                                // Header area
-                '[data-thread-perm-id] .bog'         // Thread subject alternative
+                '.bog',                               // Subject in list/thread
+                '[data-thread-perm-id] .bog',         // Thread subject alternative
             ];
-            
-            let subject = 'No Subject';
+
+            let subject = '';
             for (const selector of subjectSelectors) {
-                const subjectElement = document.querySelector(selector);
-                if (subjectElement && subjectElement.textContent.trim()) {
-                    subject = subjectElement.textContent.trim();
+                const el = document.querySelector(selector);
+                const txt = el ? (el.innerText || el.textContent || '').trim() : '';
+                if (txt) {
+                    subject = txt;
                     console.log(`SpoofGuard: Found subject with selector: ${selector}`);
                     break;
                 }
             }
+
+            // Fallback to document title (often "<subject> - Gmail")
+            if (!subject) {
+                const t = (document.title || '').trim();
+                const m = t.match(/^(.*?)(?:\s-\sGmail)/i);
+                if (m && m[1] && m[1].trim()) {
+                    subject = m[1].trim();
+                    console.log('SpoofGuard: Subject derived from document.title');
+                }
+            }
+
+            if (!subject) subject = 'No Subject';
             
             console.log('SpoofGuard: Extracted data:', {
                 messageId,
@@ -594,7 +607,7 @@ class SpoofGuardContent {
                 bodyText = bodyEl ? (bodyEl.innerText || bodyEl.textContent || '') : '';
             } catch {}
 
-            if (senderEmail !== 'unknown@example.com' || subject !== 'No Subject') {
+            if (senderEmail !== 'unknown@example.com' || (subject && subject !== 'No Subject')) {
                 this.processEmailData({
                     provider: 'gmail',
                     messageId: messageId,
