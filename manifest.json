@@ -20,7 +20,7 @@
   ],
   
   "oauth2": {
-    "client_id": "851135336689-d13un7kiv3v4j6ja3vl0gb5ginghn7i2.apps.googleusercontent.com",
+    "client_id": "646420574954-grbh7n9ga4m51t5vhnq1jb0ch6s66g02.apps.googleusercontent.com",
     "scopes": [
       "https://www.googleapis.com/auth/gmail.readonly"
     ]
@@ -54,8 +54,8 @@
     }
   ],
   "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
+    "16": "assets/icons/icon16.png",
+    "48": "assets/icons/icon48.png",
+    "128": "assets/icons/icon128.png"
   }
 }
