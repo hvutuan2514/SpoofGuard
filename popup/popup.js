@@ -299,8 +299,7 @@ class SpoofGuardPopup {
         const emailInfo = document.getElementById('email-info');
         if (analysis && analysis.sender) {
             emailInfo.innerHTML = `
-                <strong>From:</strong> ${this.escapeHtml(analysis.sender)}<br>
-                <strong>Security Score:</strong> ${analysis.securityScore}/100
+                <strong>From:</strong> ${this.escapeHtml(analysis.sender)}
             `;
             
             const authResults = document.getElementById('auth-results');
@@ -311,12 +310,31 @@ class SpoofGuardPopup {
             this.updateAuthResult('dkim', analysis.dkim || { status: 'unknown' });
             this.updateAuthResult('dmarc', analysis.dmarc || { status: 'unknown' });
 
+            this.updateAIAnalysis(analysis);
             this.updateOverallVerdict(analysis);
         } else {  
             const authResults = document.getElementById('auth-results');
             if (authResults) {
                 authResults.style.display = 'none';
             }
+        }
+    }
+
+    updateAIAnalysis(analysis) {
+        const aiSection = document.getElementById('ai-analysis');
+        const aiStatus = document.getElementById('ai-status');
+        const aiProbs = document.getElementById('ai-probs');
+        if (!aiSection || !aiStatus || !aiProbs) return;
+        if (analysis.aiClassification) {
+            aiSection.style.display = 'block';
+            aiStatus.textContent = analysis.aiClassification.toUpperCase();
+            const probs = analysis.aiProbabilities || {};
+            const entries = Object.entries(probs).map(([k,v]) => `${k}: ${(v*100).toFixed(1)}%`);
+            aiProbs.textContent = entries.join(' | ');
+        } else {
+            aiSection.style.display = 'none';
+            aiStatus.textContent = '-';
+            aiProbs.textContent = '';
         }
     }
 
@@ -423,19 +441,27 @@ class SpoofGuardPopup {
         iconElement.classList.remove('secure', 'warning', 'danger');
 
         let verdictClass, title, message;
-
-        if (analysis.riskLevel === 'low') {
+        const cls = (analysis.aiClassification || '').toLowerCase();
+        if (cls === 'normal') {
             verdictClass = 'secure';
-            title = 'Email Appears Secure';
-            message = 'All authentication checks passed. This email is likely legitimate.';
-        } else if (analysis.riskLevel === 'medium') {
-            verdictClass = 'warning';
-            title = 'Proceed with Caution';
-            message = 'Some authentication checks failed. Verify sender before taking action.';
-        } else {
+            title = 'Safe to Interact';
+            message = 'AI classification: Normal.';
+        } else if (cls === 'fraudulent') {
             verdictClass = 'danger';
-            title = 'High Risk - Potential Spoofing';
-            message = 'Multiple authentication failures detected. This email may be fraudulent.';
+            title = 'High Risk - Fraudulent';
+            message = 'AI classification: Fraudulent.';
+        } else if (cls === 'harassing') {
+            verdictClass = 'warning';
+            title = 'Harassing Content';
+            message = 'AI classification: Harassing.';
+        } else if (cls === 'suspicious') {
+            verdictClass = 'warning';
+            title = 'Suspicious Content';
+            message = 'AI classification: Suspicious.';
+        } else {
+            verdictClass = 'warning';
+            title = 'Analysis Available';
+            message = 'Authentication results shown below.';
         }
 
         verdictElement.classList.add(verdictClass);

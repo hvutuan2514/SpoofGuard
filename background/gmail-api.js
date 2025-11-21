@@ -29,25 +29,30 @@ export class GmailAPIClient {
             this.isAuthenticating = true;
             console.log('SpoofGuard: Starting Gmail API authentication...');
 
-            // Chrome Extension OAuth flow — scopes come from manifest.oauth2.scopes
-            const token = await new Promise((resolve, reject) => {
+            const token = await new Promise((resolve) => {
                 chrome.identity.getAuthToken({ interactive: true }, (t) => {
                     if (chrome.runtime.lastError) {
-                        reject(new Error(chrome.runtime.lastError.message));
+                        resolve(null);
                     } else {
                         resolve(t);
                     }
                 });
             });
 
-            this.accessToken = token;
-            this.tokenExpiry = Date.now() + (3600 * 1000);
-            console.log('SpoofGuard: Gmail API authentication successful via getAuthToken');
-            return true;
+            if (token) {
+                this.accessToken = token;
+                this.tokenExpiry = Date.now() + (3600 * 1000);
+                console.log('SpoofGuard: Gmail API authentication successful via getAuthToken');
+                return true;
+            }
+
+            const webOk = await this.authenticateViaWebAuthFlow();
+            if (webOk) return true;
+            throw new Error('Gmail API authentication failed');
 
         } catch (error) {
             console.error('SpoofGuard: Gmail API authentication failed:', error);
-            return false; // No WebAuthFlow fallback to avoid redirect_uri_mismatch
+            return false;
         } finally {
             this.isAuthenticating = false;
         }
@@ -56,7 +61,8 @@ export class GmailAPIClient {
     async authenticateViaWebAuthFlow() {
         try {
             const manifest = chrome.runtime.getManifest();
-            const clientId = manifest.oauth2?.client_id;
+            const stored = await chrome.storage.sync.get(['oauthClientId']).catch(() => ({}));
+            const clientId = stored.oauthClientId || manifest.oauth2?.client_id;
             if (!clientId) {
                 throw new Error('Missing oauth2.client_id in manifest.json');
             }

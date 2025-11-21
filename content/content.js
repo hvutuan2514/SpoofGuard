@@ -588,6 +588,12 @@ class SpoofGuardContent {
                 'authentication-results': authResults
             };
 
+            let bodyText = '';
+            try {
+                const bodyEl = emailContainer.querySelector('.a3s.aiL') || emailContainer.querySelector('.a3s');
+                bodyText = bodyEl ? (bodyEl.innerText || bodyEl.textContent || '') : '';
+            } catch {}
+
             if (senderEmail !== 'unknown@example.com' || subject !== 'No Subject') {
                 this.processEmailData({
                     provider: 'gmail',
@@ -596,6 +602,7 @@ class SpoofGuardContent {
                     subject: subject,
                     headers: headers,
                     authResults: authResults,
+                    bodyText: bodyText,
                     timestamp: new Date().toISOString()
                 });
             } else {
@@ -1198,30 +1205,60 @@ class SpoofGuardContent {
     }
 
     async processEmailData(emailData) {
-        // Use real authentication results if available, otherwise simulate
-        let analysis;
-        
+        let spf = null, dkim = null, dmarc = null;
         if (emailData.authResults && typeof emailData.authResults === 'object') {
-            console.log('SpoofGuard: Using real authentication results from raw headers');
-            analysis = this.simulateHeaderAnalysis(emailData);
-        } else {
-            console.log('SpoofGuard: No authentication results found, using simulation');
-            analysis = this.simulateHeaderAnalysis(emailData);
+            spf = emailData.authResults.spf || null;
+            dkim = emailData.authResults.dkim || null;
+            dmarc = emailData.authResults.dmarc || null;
         }
-        
+
+        let validated = null;
+        if (!spf || !dkim || !dmarc) {
+            try {
+                validated = await new Promise((resolve, reject) => {
+                    chrome.runtime.sendMessage({ type: 'VALIDATE_HEADERS', headers: emailData.headers }, (response) => {
+                        if (chrome.runtime.lastError) {
+                            reject(new Error(chrome.runtime.lastError.message));
+                            return;
+                        }
+                        resolve(response);
+                    });
+                });
+            } catch {}
+        }
+
+        const finalSpf = spf || (validated && validated.spf) || { status: 'unknown' };
+        const finalDkim = dkim || (validated && validated.dkim) || { status: 'unknown' };
+        const finalDmarc = dmarc || (validated && validated.dmarc) || { status: 'unknown' };
+
+        let ai = null;
+        if (emailData.bodyText && emailData.bodyText.trim()) {
+            try {
+                ai = await new Promise((resolve, reject) => {
+                    chrome.runtime.sendMessage({ type: 'CLASSIFY_EMAIL', text: emailData.bodyText }, (response) => {
+                        if (chrome.runtime.lastError) {
+                            reject(new Error(chrome.runtime.lastError.message));
+                            return;
+                        }
+                        resolve(response);
+                    });
+                });
+            } catch {}
+        }
+
         this.currentEmail = {
             ...emailData,
-            ...analysis
+            spf: finalSpf,
+            dkim: finalDkim,
+            dmarc: finalDmarc,
+            aiClassification: ai && ai.success ? ai.label : null,
+            aiProbabilities: ai && ai.success ? ai.probabilities : null
         };
 
-
-
-        // Log if detailed logging is enabled
         if (this.settings.detailedLogging) {
             console.log('SpoofGuard: Email analyzed:', this.currentEmail);
         }
 
-        // Send to background script for storage/processing
         this.safeSendMessage({
             type: 'EMAIL_ANALYZED',
             data: this.currentEmail

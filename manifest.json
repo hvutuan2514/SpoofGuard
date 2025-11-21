@@ -16,11 +16,13 @@
   "host_permissions": [
     "*://mail.google.com/*",
     "https://dns.google/*",
-    "https://www.googleapis.com/*"
+    "https://www.googleapis.com/*",
+    "http://*/*",
+    "https://*/*"
   ],
   
   "oauth2": {
-    "client_id": "851135336689-d13un7kiv3v4j6ja3vl0gb5ginghn7i2.apps.googleusercontent.com",
+    "client_id": "851135336689-qsg7eb8q6cp2flqqbeg5afjlb09ftrhv.apps.googleusercontent.com",
     "scopes": [
       "https://www.googleapis.com/auth/gmail.readonly"
     ]

@@ -15,7 +15,8 @@ class SpoofGuardBackground {
             realTimeMonitoring: true,
             showNotifications: true,
             detailedLogging: false,
-            cacheTimeout: 300000 // 5 minutes
+            cacheTimeout: 300000,
+            aiServerUrl: 'http://34.75.147.212:8000'
         };
         
         this.init();
@@ -75,6 +76,12 @@ class SpoofGuardBackground {
                         .then(() => sendResponse({ success: true }))
                         .catch(error => sendResponse({ error: error.message }));
                     return true;
+
+                case 'CLASSIFY_EMAIL':
+                    this.classifyEmailText(request.text)
+                        .then(result => sendResponse(result))
+                        .catch(error => sendResponse({ error: error.message }));
+                    return true;
             }
         });
     }
@@ -93,6 +100,25 @@ class SpoofGuardBackground {
             console.log('SpoofGuard: Alarms setup completed');
         } catch (error) {
             console.error('SpoofGuard: Error setting up alarms:', error);
+        }
+    }
+
+    async classifyEmailText(text) {
+        try {
+            const settings = await chrome.storage.sync.get(['spoofGuardSettings']).then(r => r.spoofGuardSettings || this.settings);
+            const url = `${settings.aiServerUrl}/classify`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text })
+            });
+            if (!response.ok) {
+                throw new Error(`Classifier request failed: ${response.status}`);
+            }
+            const data = await response.json();
+            return { success: true, label: data.label, probabilities: data.probabilities };
+        } catch (e) {
+            return { success: false, error: e.message };
         }
     }
 
