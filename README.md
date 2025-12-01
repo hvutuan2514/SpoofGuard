@@ -44,7 +44,7 @@
 ## Install the Extension (Developer Mode)
 1. Clone or download this repository.
 2. Open Chrome → `chrome://extensions` → enable `Developer mode`.
-3. Click `Load unpacked` → select the project root (`SpoofGuard-1`).
+3. Click `Load unpacked` → select the project root (`SpoofGuard`).
 4. The extension appears in the toolbar with the SpoofGuard icon.
 
 > Tip: Pin the SpoofGuard icon to your toolbar for quick access.
