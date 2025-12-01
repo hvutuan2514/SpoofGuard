@@ -15,8 +15,7 @@
 <p align="center">
   <a href="#features">Features</a> ·
   <a href="#install-the-extension-developer-mode">Install</a> ·
-  <a href="#model-server-google-cloud-vm">Model Server</a> ·
-  <a href="#point-the-extension-to-your-server">Configure</a> ·
+  <a href="#configure-gmail-api-oauth">Configure</a> ·
   <a href="#troubleshooting">Troubleshooting</a>
 </p>
 
