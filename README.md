@@ -88,7 +88,7 @@ The API exposes:
   - Request: `{ "text": "email body text" }`
   - Response: `{ "label": "Normal|Fraudulent|Harassing|Suspicious", "probabilities": { ... } }`
 
-> CORS is enabled, so the browser can call it directly.
+CORS is enabled, so the browser can call it directly.
 
 ---
 
@@ -111,7 +111,7 @@ chrome.storage.sync.set({
 });
 ```
 
-> Reload Gmail and open an email; the popup will call your server.
+3. Reload Gmail and open an email; the popup will call your server.
 
 ---
 
