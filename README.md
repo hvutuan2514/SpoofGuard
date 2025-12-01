@@ -57,7 +57,7 @@ SpoofGuard uses Gmail Readonly scope to fetch reliable headers.
 - Replace `oauth2.client_id` in `manifest.json` with your Client ID.
 - Reload the extension after editing.
 
-Note: Do not commit secrets. MV3 uses client ID only (no client secret in the extension).
+> Note: Do not commit secrets. MV3 uses client ID only (no client secret in the extension).
 
 ## Model Server (Google Cloud VM)
 The ML classifier runs outside the extension. The instance previously used is paused to save resources; you must deploy your own.
