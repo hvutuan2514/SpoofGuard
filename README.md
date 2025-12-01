@@ -16,7 +16,8 @@
   <a href="#features">Features</a> ·
   <a href="#install-the-extension-developer-mode">Install</a> ·
   <a href="#configure-gmail-api-oauth">Configure</a> ·
-  <a href="#troubleshooting">Troubleshooting</a>
+  <a href="#troubleshooting">Troubleshooting</a> .
+  <a href="#dataset--research">Resources</a>
 </p>
 
 ## Features
@@ -123,3 +124,8 @@ chrome.storage.sync.set({
 - Do not log or store Gmail data beyond temporary caches.
 - Never commit keys or secrets.
 - Use HTTPS for the classifier in production and restrict CORS origins.
+
+## Dataset & Research
+- The Excel dataset used in `model/SEFACED_Email_Forensic_Dataset.xlsx` was sourced from the SeFACED repository: https://github.com/Abdul-Rehman-J/SeFACED
+- This extension was inspired by the SeFACED research paper: https://ieeexplore.ieee.org/document/9477611
+- SeFACED presents an LSTM‑GRU based multiclass classifier across Normal, Fraudulent, Harassing, and Suspicious categories; headers are removed and body text is used for analysis.
