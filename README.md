@@ -66,7 +66,7 @@ The ML classifier runs outside the extension. The instance previously used is pa
 - Create a VM (Linux) with sufficient memory (e.g., 8–16 GB RAM if using TensorFlow CPU).
 - Open firewall for TCP port `8000` (or your chosen port).
 - Install Python 3.10+ and create a virtual environment.
-  Run the following commands on your VM:
+- Run the following commands on your VM:
 
 ```bash
 sudo apt update && sudo apt install -y python3-pip python3-venv
@@ -88,7 +88,7 @@ The API exposes:
   - Request: `{ "text": "email body text" }`
   - Response: `{ "label": "Normal|Fraudulent|Harassing|Suspicious", "probabilities": { ... } }`
 
-CORS is enabled, so the browser can call it directly.
+> CORS is enabled, so the browser can call it directly.
 
 ---
 
@@ -111,7 +111,7 @@ chrome.storage.sync.set({
 });
 ```
 
-Reload Gmail and open an email; the popup will call your server.
+> Reload Gmail and open an email; the popup will call your server.
 
 ---
 
