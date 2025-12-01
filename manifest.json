@@ -1,0 +1,68 @@
+{
+  "manifest_version": 3,
+  "name": "SpoofGuard",
+  "version": "1.0.0",
+  "description": "Real-time email spoofing detection that analyzes SPF, DKIM, and DMARC headers to detect phishing and business email compromise attacks.",
+  
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting",
+    "notifications",
+    "alarms",
+    "identity"
+  ],
+  
+  "host_permissions": [
+    "*://mail.google.com/*",
+    "https://dns.google/*",
+    "https://www.googleapis.com/*",
+    "http://*/*",
+    "https://*/*"
+  ],
+  
+  "oauth2": {
+    "client_id": "851135336689-d13un7kiv3v4j6ja3vl0gb5ginghn7i2.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/gmail.readonly"
+    ]
+  },
+  
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "SpoofGuard - Email Security Analysis",
+    "default_icon": {
+      "16": "assets/icon16.png",
+      "48": "assets/icon48.png"
+    }
+  },
+  
+  "content_scripts": [
+    {
+      "matches": [
+        "*://mail.google.com/*"
+      ],
+      "js": ["content/content.js"],
+      "css": ["content/content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  
+  "background": {
+    "service_worker": "background/background.js",
+    "type": "module"
+  },
+  
+  "web_accessible_resources": [
+    {
+      "resources": ["assets/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+  ,
+  "icons": {
+    "16": "assets/icon16.png",
+    "48": "assets/icon48.png",
+    "128": "assets/icon128.png"
+  }
+}
