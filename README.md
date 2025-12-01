@@ -115,11 +115,6 @@ chrome.storage.sync.set({
 
 ---
 
-## How It Works
-- Content script extracts sender, subject, and attempts headers; Gmail API fills gaps.
-- Background fetches DNS TXT records (SPF/DMARC via DoH) and calls `/classify`.
-- Popup renders the score, identity, auth statuses with explanations, and AI classification.
-
 ## Troubleshooting
 - Subject missing: the content script falls back to document title; ensure Gmail is open on a message view.
 - “Failed to fetch” for classifier: VM paused or firewall closed; verify `curl http://IP:8000/classify` from outside.
